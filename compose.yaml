@@ -1,0 +1,11 @@
+services:
+  locallabel:
+    build: .
+    ports:
+      - "${LOCALLABEL_PORT:-8811}:8811"
+    volumes:
+      - locallabel-data:/data
+    restart: unless-stopped
+
+volumes:
+  locallabel-data:

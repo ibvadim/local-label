@@ -1,0 +1,161 @@
+.page-container { max-width:var(--page-max); padding-top:40px; padding-bottom:64px; }
+
+.heading { max-width: 700px; }
+.heading h1 {
+  margin: 5px 0 7px;
+  font-size: clamp(28px, 3vw, 36px);
+  line-height: 1.12;
+  letter-spacing: -.035em;
+}
+.heading p, .section-head p, .browser-connection p { margin: 0; color: var(--muted); }
+.heading p, .section-head p { font-size: 15px; }
+.kicker {
+  display: block;
+  color: var(--muted);
+  font: 11px/1.25 ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: .06em;
+}
+
+
+.browser-connection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+  margin-top: 16px;
+  padding: 24px;
+}
+.browser-connection h2, .section-head h2 {
+  margin: 4px 0 6px;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+.browser-connection p { max-width: 700px; font-size: 14px; }
+.browser-connection button { min-width: 208px; }
+
+.server { margin-top: 42px; }
+.section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.section-head > div { max-width: 790px; }
+.section-head > button { flex: 0 0 auto; }
+.notice { min-height: 20px; margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+.notice:empty { display: none; }
+.notice.error { color: var(--danger); }
+
+.devices { display: grid; gap: 12px; margin-top: 18px; }
+.device {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+.device.selected { border-color: var(--success); box-shadow: 0 0 0 2px #29884a14; }
+.device-select {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 84px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 17px 20px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  white-space: normal;
+}
+.device-select:hover { border-color: transparent; background: #f7f7f4; }
+.device.selected .device-select { background: #f7fbf8; }
+.device-select-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.device-select-copy strong {
+  overflow: hidden;
+  font-size: 19px;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-select-copy > span:last-child { color: var(--muted); font-size: 13px; }
+.device-source {
+  color: var(--muted);
+  font: 11px/1.2 ui-monospace, monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #7772;
+  font: 11px ui-monospace, monospace;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.state.ready { color: var(--success); background: #29884a18; }
+.state.error, .state.offline { color: var(--danger); background: #d33a1c18; }
+
+.printer-settings {
+  margin: 0 20px;
+  padding: 17px 0 20px;
+  border-top: 1px solid var(--border);
+}
+details summary { cursor: pointer; font-weight: 700; }
+details summary::marker { color: var(--muted); }
+.details-help, .field-help { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+.setting-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.setting-grid label { font-size: 12px; }
+.setting-grid input { width: 100%; margin-top: 5px; }
+.active-printer { display: block; margin-top: 14px; font-size: 12px; }
+.active-printer input { width: auto; }
+.actions { display: flex; gap: 8px; margin-top: 14px; }
+
+.device-discovered {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 17px 20px;
+  background: var(--surface);
+}
+.device-discovered .add-server-device { flex: 0 0 auto; }
+.empty {
+  display: grid;
+  gap: 4px;
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+.empty strong { color: var(--text); }
+
+@media (max-width: 760px) {
+  .page-container { padding-top:28px; }
+  .browser-connection { grid-template-columns: 1fr; gap: 16px; }
+  .section-head { align-items: flex-start; flex-direction: column; gap: 14px; }
+}
+@media (max-width: 500px) {
+  .browser-connection { padding: 16px; }
+  .browser-connection h2, .section-head h2 { font-size: 20px; }
+  .browser-connection button, .device-discovered .add-server-device { width: 100%; }
+  .device-select, .device-discovered { align-items: flex-start; flex-direction: column; padding: 16px; }
+  .printer-settings { margin: 0 16px; }
+  .setting-grid { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,32 @@
+# Python bytecode, test, coverage and build outputs
+__pycache__/
+*.py[oc]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+venv/
+env/
+.uv-cache/
+
+# Local configuration and runtime data
+.env
+.env.*
+!.env.example
+data/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp

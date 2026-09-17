@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title data-app-i18n="printersTitle">LocalLabel — принтеры</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app-header.css">
+  <link rel="stylesheet" href="/static/printers.css"><script defer src="/static/app-shell.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <span class="brand">LOCALLABEL</span>
+    <nav class="header-nav" aria-label="Основное меню">
+      <a href="/print" data-app-i18n="print">Печать</a><a class="active" href="/printers" data-app-i18n="printers">Принтеры</a><a href="/templates" data-app-i18n="templates">Шаблоны</a><a href="/" data-app-i18n="icons">Иконки</a>
+    </nav>
+    <select class="locale" aria-label="Language"><option value="ru">RU</option><option value="en">EN</option></select><span class="status-dot" data-app-i18n="ready">● ГОТОВО</span>
+  </header>
+  <main class="page-container">
+    <div class="heading">
+      <span class="kicker" data-app-i18n="destinations">НАЗНАЧЕНИЯ ПЕЧАТИ</span>
+      <h1 data-app-i18n="printersTitle">Принтеры</h1>
+      <p data-app-i18n="printersDescription">Выберите принтер. Выбор и параметры USB-принтера сохраняются в этом браузере.</p>
+    </div>
+
+    <section class="browser-connection card">
+      <div>
+        <span class="kicker" data-app-i18n="browserPrinter">ПРИНТЕР В БРАУЗЕРЕ</span>
+        <h2 data-app-i18n="connectUsb">Подключить USB-принтер</h2>
+        <p data-app-i18n="browserDescription">Доступно в Chrome или Edge. Браузер попросит разрешение, после чего принтер появится в общем списке.</p>
+      </div>
+      <button id="webusb" type="button" data-app-i18n="connectUsb">Подключить USB-принтер</button>
+    </section>
+
+    <section class="server">
+      <div class="section-head">
+        <div>
+          <span class="kicker" data-app-i18n="allPrinters">ВСЕ ДОСТУПНЫЕ ПРИНТЕРЫ</span>
+          <h2 data-app-i18n="choosePrint">Выберите принтер для печати</h2>
+          <p data-app-i18n="serverDescription">Нажмите на принтер, чтобы выбрать его и открыть параметры. Серверные принтеры доступны всем пользователям приложения.</p>
+        </div>
+        <button id="refresh" type="button" data-app-i18n="refresh">Обновить</button>
+      </div>
+      <p id="notice" class="notice" role="status"></p>
+      <section id="devices" class="devices" aria-label="Доступные принтеры"></section>
+    </section>
+  </main>
+
+<script>
+const $ = selector => document.querySelector(selector);
+const tr = (ru, en) => window.StickersApp?.locale === 'en' ? en : ru;
+const serverStatus = message => window.StickersApp?.statusMessage?.(message) || message;
+const PRINTER_KEY = 'locallabel.tspl-printer-v1';
+const DESTINATION_KEY = 'locallabel.print-destination-v1';
+const esc = value => { const node = document.createElement('div'); node.textContent = value ?? ''; return node.innerHTML };
+let server = [], serverDevices = [], available = [];
+
+const printerId = device => `${device.vendorId}:${device.productId}:${device.serialNumber || ''}`;
+const message = (text, error = false) => {
+  const element = $('#notice');
+  element.textContent = text;
+  element.className = `notice${error ? ' error' : ''}`;
+};
+const selectedDestination = () => localStorage.getItem(DESTINATION_KEY) || '';
+const selectDestination = value => localStorage.setItem(DESTINATION_KEY, value);
+const webusbSettings = () => {
+  const id = localStorage.getItem(PRINTER_KEY);
+  try { return id ? JSON.parse(localStorage.getItem(`${PRINTER_KEY}.settings.${id}`) || '{}') : {}; }
+  catch { return {}; }
+};
+const connectedWebusb = () => {
+  const saved = localStorage.getItem(PRINTER_KEY);
+  return available.find(device => printerId(device) === saved) || null;
+};
+async function json(url, options = {}) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    let detail = 'Не удалось выполнить действие';
+    try { detail = (await response.json()).detail || detail; } catch {}
+    throw Error(detail);
+  }
+  return response.json();
+}
+function transportLabel(transport) {
+  return ({ libusb: tr('Прямое USB-подключение', 'Direct USB connection'), raw: tr('Прямое подключение', 'Direct connection'), cups: tr('Системная очередь', 'System queue'), windows: tr('Системный принтер', 'System printer') })[transport] || transport;
+}
+function stateLabel(state) {
+  return ({ ready: tr('Готов', 'Ready'), printing: tr('Печатает', 'Printing'), offline: tr('Не в сети', 'Offline'), error: tr('Ошибка', 'Error'), unknown: tr('Проверяется', 'Checking') })[state] || state;
+}
+function settingFields(prefix, values = {}) {
+  return `<div class="setting-grid">
+    <label>${tr('Зазор между этикетками, мм', 'Label gap, mm')}<input id="${prefix}-gap-mm" type="number" min="0" max="100" step="0.1" value="${esc(values.gap_mm ?? 2)}"></label>
+    <label>${tr('Сдвиг зазора, мм', 'Gap offset, mm')}<input id="${prefix}-gap-offset-mm" type="number" min="-100" max="100" step="0.1" value="${esc(values.gap_offset_mm ?? 0)}"></label>
+    <label>${tr('Скорость, ips', 'Speed, ips')}<input id="${prefix}-speed-ips" type="number" min="0.1" max="12" step="0.1" placeholder="${tr('По умолчанию', 'Default')}" value="${esc(values.speed_ips ?? '')}"></label>
+    <label>${tr('Плотность печати', 'Print density')}<input id="${prefix}-density" type="number" min="0" max="15" step="1" placeholder="${tr('По умолчанию', 'Default')}" value="${esc(values.density ?? '')}"></label>
+  </div>`;
+}
+function settings(prefix) {
+  return {
+    gap_mm: Number($(`#${prefix}-gap-mm`).value),
+    gap_offset_mm: Number($(`#${prefix}-gap-offset-mm`).value),
+    speed_ips: $(`#${prefix}-speed-ips`).value === '' ? null : Number($(`#${prefix}-speed-ips`).value),
+    density: $(`#${prefix}-density`).value === '' ? null : Number($(`#${prefix}-density`).value),
+    direction: 1, codepage: 'UTF-8'
+  };
+}
+function webusbCard(device) {
+  const chosen = selectedDestination() === '_webusb';
+  return `<article class="device ${chosen ? 'selected' : ''}" data-destination="_webusb">
+    <button class="device-select" type="button" aria-expanded="${chosen}">
+      <span class="device-select-copy"><span class="device-source">${tr('Этот браузер', 'This browser')} · USB</span><strong>${esc(device.productName || tr('USB-принтер', 'USB printer'))}</strong><span>${tr('Подключён и доступен в браузере', 'Connected and available in this browser')}</span></span>
+      <span class="state ready">${chosen ? tr('Выбран', 'Selected') : tr('Готов', 'Ready')}</span>
+    </button>
+    <details class="printer-settings" ${chosen ? 'open' : ''}>
+      <summary>${tr('Параметры печати', 'Print settings')}</summary>
+      <p class="details-help">${tr('Параметры сохраняются для этого USB-принтера только в этом браузере.', 'Settings for this USB printer are saved only in this browser.')}</p>
+      ${settingFields('web', webusbSettings())}
+      <div class="actions"><button class="save-webusb-settings" type="button">${tr('Сохранить параметры', 'Save settings')}</button></div>
+    </details>
+  </article>`;
+}
+function serverCard(printer) {
+  const chosen = selectedDestination() === `server:${printer.id}`, settingsPrefix = `printer-${printer.id}`;
+  return `<article class="device ${chosen ? 'selected' : ''}" data-destination="server:${printer.id}">
+    <button class="device-select" type="button" aria-expanded="${chosen}">
+      <span class="device-select-copy"><span class="device-source">${tr('Сервер', 'Server')} · ${esc(transportLabel(printer.transport))}</span><strong>${esc(printer.name)}</strong><span>${esc(serverStatus(printer.status.message))}</span></span>
+      <span class="state ${esc(printer.status.state)}">${chosen ? tr('Выбран', 'Selected') : esc(stateLabel(printer.status.state))}</span>
+    </button>
+    <details class="printer-settings" ${chosen ? 'open' : ''}>
+      <summary>${tr('Параметры печати', 'Print settings')}</summary>
+      ${settingFields(settingsPrefix, printer.settings || {})}
+      <label class="active-printer"><input id="active-${printer.id}" type="checkbox" ${printer.is_active ? 'checked' : ''}> ${tr('Использовать по умолчанию для серверной печати', 'Use as default for server printing')}</label>
+      <div class="actions"><button class="save-printer" data-printer="${printer.id}" type="button">${tr('Сохранить параметры', 'Save settings')}</button></div>
+    </details>
+  </article>`;
+}
+function discoverableCard(device) {
+  return `<article class="device device-discovered">
+    <div class="device-select-copy"><span class="device-source">${tr('Сервер', 'Server')} · ${esc(transportLabel(device.transport))}</span><strong>${esc(device.name)}</strong><span>${tr('Доступен серверу, но ещё не настроен', 'Available to the server, but not configured yet')}</span></div>
+    <button class="add-server-device" data-uri="${esc(device.uri)}" type="button">${tr('Добавить принтер', 'Add printer')}</button>
+  </article>`;
+}
+function selectCard(destination) {
+  selectDestination(destination);
+  if (destination === '_webusb') localStorage.setItem(DESTINATION_KEY, '_webusb');
+  render();
+}
+function render() {
+  const web = connectedWebusb();
+  const known = new Set(server.map(printer => printer.device_uri));
+  const candidates = serverDevices.filter(device => !known.has(device.uri));
+  const cards = [
+    ...(web ? [webusbCard(web)] : []),
+    ...server.map(serverCard),
+    ...candidates.map(discoverableCard)
+  ];
+  $('#devices').innerHTML = cards.length ? cards.join('') : `<div class="empty"><strong>${tr('Принтеры пока не найдены.', 'No printers found yet.')}</strong><span>${tr('Подключите USB-принтер в браузере или обновите список серверных устройств.', 'Connect a USB printer in the browser or refresh the server device list.')}</span></div>`;
+  document.querySelectorAll('.device-select').forEach(button => button.onclick = () => selectCard(button.closest('.device').dataset.destination));
+  document.querySelectorAll('.save-webusb-settings').forEach(button => button.onclick = saveWebusbSettings);
+  document.querySelectorAll('.save-printer').forEach(button => button.onclick = () => savePrinter(button.dataset.printer).catch(error => message(error.message, true)));
+  document.querySelectorAll('.add-server-device').forEach(button => button.onclick = () => addServerDevice(button.dataset.uri).catch(error => message(error.message, true)));
+}
+async function load() {
+  const [devices, printers] = await Promise.all([json('/api/printers/devices'), json('/api/printers')]);
+  serverDevices = devices.devices; server = printers.printers; render(); return devices;
+}
+async function refresh() {
+  const devices = await load();
+  message(devices.diagnostics?.length ? devices.diagnostics.join(' ') : tr('Список устройств обновлён.', 'Device list refreshed.'), !!devices.diagnostics?.length);
+}
+async function addServerDevice(uri) {
+  const device = serverDevices.find(item => item.uri === uri);
+  if (!device) return;
+  await json('/api/printers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device_uri: uri, name: device.name, settings: { gap_mm: 2, gap_offset_mm: 0, direction: 1, codepage: 'UTF-8' } }) });
+  await load();
+  const printer = server.find(item => item.device_uri === uri);
+  if (printer) selectCard(`server:${printer.id}`);
+  message(`${device.name} ${tr('добавлен и выбран.', 'was added and selected.')}`);
+}
+async function savePrinter(id) {
+  const printer = server.find(item => item.id === id), prefix = `printer-${id}`;
+  await json(`/api/printers/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: printer.name, settings: settings(prefix), is_active: $(`#active-${id}`).checked }) });
+  await load(); message(tr('Параметры принтера сохранены.', 'Printer settings saved.'));
+}
+function saveWebusbSettings() {
+  const id = localStorage.getItem(PRINTER_KEY);
+  if (!id) return;
+  localStorage.setItem(`${PRINTER_KEY}.settings.${id}`, JSON.stringify(settings('web')));
+  message(tr('Параметры USB-принтера сохранены.', 'USB printer settings saved.'));
+}
+async function webusb() {
+  if (!navigator.usb) throw Error(tr('USB-подключение доступно только в Chrome или Edge по HTTPS либо localhost', 'USB connection is available only in Chrome or Edge over HTTPS or localhost'));
+  const device = await navigator.usb.requestDevice({ filters: [] });
+  localStorage.setItem(PRINTER_KEY, printerId(device));
+  selectDestination('_webusb');
+  available = await navigator.usb.getDevices();
+  render(); message(`${device.productName || tr('USB-принтер', 'USB printer')} ${tr('подключён и выбран.', 'connected and selected.')}`);
+}
+$('#refresh').onclick = () => refresh().catch(error => message(error.message, true));
+$('#webusb').onclick = () => webusb().catch(error => message(error.message, true));
+document.addEventListener('locallabel:localechange', () => render());
+async function init() {
+  available = navigator.usb ? await navigator.usb.getDevices() : [];
+  if (!navigator.usb) { $('#webusb').disabled = true; $('#webusb').title = tr('Откройте страницу в Chrome или Edge по HTTPS или localhost', 'Open this page in Chrome or Edge over HTTPS or localhost'); }
+  await load();
+}
+init().catch(error => message(error.message, true));
+</script>
+</body>
+</html>

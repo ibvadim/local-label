@@ -1,0 +1,15 @@
+.asset-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, .7fr);
+  gap: 7px;
+  margin: 6px 0 8px;
+}
+
+.asset-filters input,
+.asset-filters select {
+  width: 100%;
+}
+
+@media (max-width: 420px) {
+  .asset-filters { grid-template-columns: 1fr; }
+}

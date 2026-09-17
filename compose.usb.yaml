@@ -1,0 +1,7 @@
+# Linux host only.  Create a stable udev symlink first, then run:
+# LOCALLABEL_PRINTER_DEVICE=/dev/locallabel-printer \
+#   docker compose -f compose.yaml -f compose.usb.yaml up -d --build
+services:
+  locallabel:
+    devices:
+      - "${LOCALLABEL_PRINTER_DEVICE}:/dev/locallabel-printer"

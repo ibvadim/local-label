@@ -1,0 +1,14 @@
+[project]
+name = "locallabel"
+version = "0.1.0"
+description = "A local-first web app for designing and printing TSPL label templates."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.141.1",
+    "pillow>=12.3.0",
+    "python-multipart>=0.0.32",
+    "pyusb>=1.3.1",
+    "sqlalchemy>=2.0.54",
+    "uvicorn[standard]>=0.53.0",
+]
