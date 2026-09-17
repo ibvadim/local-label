@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-dejavu-core \
     libusb-1.0-0 \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir fastapi pillow python-multipart sqlalchemy "uvicorn[standard]" pyusb
+    && pip install --no-cache-dir fastapi pillow python-multipart qrcode sqlalchemy "uvicorn[standard]" pyusb
 
 ENV LOCALLABEL_DATABASE_URL=sqlite:////data/locallabel.db
 VOLUME ["/data"]
