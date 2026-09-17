@@ -1,7 +1,9 @@
-# Linux host only.  Create a stable udev symlink first, then run:
-# LOCALLABEL_PRINTER_DEVICE=/dev/locallabel-printer \
+# Linux host only. Run with the path visible on the host, for example:
+# LOCALLABEL_PRINTER_DEVICE=/dev/usb/lp0 \
 #   docker compose -f compose.yaml -f compose.usb.yaml up -d --build
 services:
   locallabel:
     devices:
-      - "${LOCALLABEL_PRINTER_DEVICE}:/dev/locallabel-printer"
+      # Keep the same device path in the container: server discovery scans
+      # /dev/usb/lp* and /dev/lp* for raw TSPL printers.
+      - "${LOCALLABEL_PRINTER_DEVICE}:${LOCALLABEL_PRINTER_DEVICE}"

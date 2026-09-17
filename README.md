@@ -69,12 +69,12 @@ the `locallabel-data` volume.
 
 ### Direct USB from a Linux Docker host
 
-Create a stable udev symlink for the printer, then pass it to the optional
-Compose override:
+Pass the printer device path from the Linux host to the optional Compose
+override. The path is preserved inside the container so it can be discovered:
 
 ```bash
-LOCALLABEL_PRINTER_DEVICE=/dev/locallabel-printer \
-  docker compose -f compose.yaml -f compose.usb.yaml up -d
+LOCALLABEL_PRINTER_DEVICE=/dev/usb/lp0 \
+  docker compose -f compose.yaml -f compose.usb.yaml up -d --build
 ```
 
 Direct USB pass-through does not work reliably with Docker Desktop on macOS or
