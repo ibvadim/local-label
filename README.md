@@ -51,22 +51,21 @@ the first `8811` in `-p 8811:8811`, for example with `-p 8080:8811`.
 
 ### Docker Compose
 
-If you prefer Compose, download only
-[`compose.yaml`](https://raw.githubusercontent.com/ibvadim/local-label/main/compose.yaml)
-and run:
+If you prefer Compose, clone the repository and run this from its root:
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
 Set `LOCALLABEL_PORT` to change the published port:
 
 ```bash
-LOCALLABEL_PORT=8080 docker compose up -d
+LOCALLABEL_PORT=8080 docker compose up -d --build
 ```
 
-The `latest` image is rebuilt after every push to `main`. For predictable
-deployments, use a version tag such as `ghcr.io/ibvadim/local-label:0.1.0`.
+After pulling new code, rerun `docker compose up -d --build`. Docker rebuilds
+the application image and preserves templates, assets, and printer settings in
+the `locallabel-data` volume.
 
 ### Direct USB from a Linux Docker host
 

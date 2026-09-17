@@ -2,7 +2,8 @@ name: locallabel
 
 services:
   locallabel:
-    image: ghcr.io/ibvadim/local-label:latest
+    build: .
+    image: locallabel:local
     ports:
       - "${LOCALLABEL_PORT:-8811}:8811"
     volumes:
