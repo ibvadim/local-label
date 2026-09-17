@@ -77,6 +77,7 @@ class TemplateFieldPayload(BaseModel):
     tspl_y_mul: int = Field(default=1, ge=1, le=999)
     text_align: Literal["left", "center", "right"] = "center"
     vertical_align: Literal["top", "middle", "bottom"] = "middle"
+    wrap_text: bool = False
     line_thickness: int = Field(default=1, ge=1, le=999)
     corner_radius: int = Field(default=0, ge=0, le=999)
 

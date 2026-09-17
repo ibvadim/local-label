@@ -159,6 +159,20 @@
   padding-top:8px;
   border-top:1px solid var(--border)
 }
+.wrap-control {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin-top:12px;
+  color:var(--text);
+  font-size:13px
+}
+.wrap-control input {
+  width:16px!important;
+  height:16px;
+  margin:0!important;
+  accent-color:var(--accent)
+}
 .toolbar {
   display:flex;
   gap:8px;

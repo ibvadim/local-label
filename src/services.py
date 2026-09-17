@@ -37,8 +37,9 @@ from .schemas import (
 )
 
 INPUT_TOKEN_RE = re.compile(r"\{([A-Za-z][A-Za-z0-9_-]{0,63})\}")
+VALUE_TOKEN_RE = re.compile(r"\{value:([A-Za-z][A-Za-z0-9_-]{0,63})\}")
 IMAGE_TOKEN_RE = re.compile(
-    r"\{image:([A-Za-z][A-Za-z0-9_-]{0,63}):(title|[a-z][a-z0-9_]*)\}"
+    r"\{image:([A-Za-z][A-Za-z0-9_-]{0,63}):(title|group|[a-z][a-z0-9_]*)\}"
 )
 
 
@@ -502,6 +503,10 @@ def validate_template_fields(
             raise HTTPException(
                 422, f"Круг '{field_id}' должен иметь равные ширину и высоту"
             )
+        if item["wrap_text"] and item["type"] != "text":
+            raise HTTPException(
+                422, f"Перенос текста доступен только для text-поля '{field_id}'"
+            )
         if item["input_kind"] == "enum":
             if item["type"] != "text" or item["binding"] != "input":
                 raise HTTPException(
@@ -538,6 +543,16 @@ def validate_template_fields(
                 )
     for item in fields:
         if item["type"] in {"text", "qr", "barcode"} and item["value_template"]:
+            for source_id in VALUE_TOKEN_RE.findall(item["value_template"]):
+                source = next(
+                    (candidate for candidate in fields if candidate["id"] == source_id),
+                    None,
+                )
+                if not source or source["type"] != "text":
+                    raise HTTPException(
+                        422,
+                        f"Источник токена value '{source_id}' должен быть text-полем",
+                    )
             for source_id, metadata_key in IMAGE_TOKEN_RE.findall(
                 item["value_template"]
             ):
@@ -550,7 +565,7 @@ def validate_template_fields(
                         422,
                         f"Источник токена image '{source_id}' должен быть image-полем",
                     )
-                if metadata_key == "title" or not source["restrict_group_id"]:
+                if metadata_key in {"title", "group"} or not source["restrict_group_id"]:
                     continue
                 group = group_or_404(db, source["restrict_group_id"])
                 if metadata_key not in {
@@ -584,6 +599,27 @@ def validate_template_fields(
                         422,
                         f"Атрибут '{item['metadata_key']}' отсутствует в группе источника",
                     )
+    value_dependencies = {
+        item["id"]: VALUE_TOKEN_RE.findall(item.get("value_template", ""))
+        for item in fields
+        if item["type"] == "text"
+    }
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit_value(field_id: str) -> None:
+        if field_id in visiting:
+            raise HTTPException(422, f"Циклическая ссылка значений: '{field_id}'")
+        if field_id in visited:
+            return
+        visiting.add(field_id)
+        for dependency in value_dependencies[field_id]:
+            visit_value(dependency)
+        visiting.remove(field_id)
+        visited.add(field_id)
+
+    for field_id in value_dependencies:
+        visit_value(field_id)
     # Do not keep two coordinate systems in the stored JSON.  This avoids
     # DPI-dependent rounding drift when a template is opened and saved again.
     for item in fields:
@@ -631,17 +667,25 @@ def preview_values(
         if field["type"] == "enum" and value and value not in field["enum_values"]:
             raise HTTPException(422, f"Недопустимый вариант enum-поля '{field_id}'")
         input_values[field_id] = value
-    for field_id, field in fields.items():
+    resolving: set[str] = set()
+
+    def resolve_field(field_id: str) -> str:
+        if field_id in resolved:
+            return resolved[field_id]
+        if field_id in resolving:
+            raise HTTPException(422, f"Циклическая ссылка значений: '{field_id}'")
+        field = fields[field_id]
         if field["type"] == "image":
-            continue
+            return ""
+        resolving.add(field_id)
         if field["binding"] == "derived":
             source = assets.get(field.get("source_field_id", ""))
             if not source:
-                resolved[field_id] = field.get("default_value", "")
+                value = field.get("default_value", "")
             elif field.get("metadata_key") == "__asset_title__":
-                resolved[field_id] = source.title
+                value = source.title
             else:
-                resolved[field_id] = str(
+                value = str(
                     source.metadata_values.get(
                         field.get("metadata_key"), field.get("default_value", "")
                     )
@@ -654,25 +698,36 @@ def preview_values(
                 and value not in field.get("enum_values", [])
             ):
                 raise HTTPException(422, f"Недопустимый вариант enum-поля '{field_id}'")
-            resolved[field_id] = value
         else:
             template_value = field.get("value_template", "")
             if not template_value:
-                resolved[field_id] = field.get("default_value", "")
-                continue
+                value = field.get("default_value", "")
+            else:
 
-            def image_value(match: re.Match[str]) -> str:
-                source = assets.get(match.group(1))
-                if not source:
-                    return ""
-                if match.group(2) == "title":
-                    return source.title
-                return str(source.metadata_values.get(match.group(2), ""))
+                def image_value(match: re.Match[str]) -> str:
+                    source = assets.get(match.group(1))
+                    if not source:
+                        return ""
+                    if match.group(2) == "title":
+                        return source.title
+                    if match.group(2) == "group":
+                        return source.group.name if source.group else ""
+                    return str(source.metadata_values.get(match.group(2), ""))
 
-            template_value = IMAGE_TOKEN_RE.sub(image_value, template_value)
-            resolved[field_id] = INPUT_TOKEN_RE.sub(
-                lambda match: input_values[match.group(1)], template_value
-            )
+                template_value = IMAGE_TOKEN_RE.sub(image_value, template_value)
+                template_value = VALUE_TOKEN_RE.sub(
+                    lambda match: resolve_field(match.group(1)), template_value
+                )
+                value = INPUT_TOKEN_RE.sub(
+                    lambda match: input_values[match.group(1)], template_value
+                )
+        resolving.remove(field_id)
+        resolved[field_id] = value
+        return value
+
+    for field_id, field in fields.items():
+        if field["type"] != "image":
+            resolve_field(field_id)
     return resolved, assets
 
 
@@ -712,6 +767,51 @@ TSPL_FONT_CELLS = {
 }
 
 
+def wrapped_text_lines(
+    value: str, field: dict[str, Any], width: int, dpi: int
+) -> list[str]:
+    """Wrap text at word boundaries using the same dimensions used for print."""
+    lines = value.splitlines() or [""]
+    if not field.get("wrap_text"):
+        return lines
+    font_name = str(field.get("tspl_font", "3"))
+    if font_name in TSPL_FONT_CELLS:
+        cell_width = TSPL_FONT_CELLS[font_name][0] * int(field.get("tspl_x_mul", 1))
+        measure = lambda text: len(text) * cell_width
+    else:
+        x_points, y_points = (
+            int(field.get("tspl_x_mul", 12)),
+            int(field.get("tspl_y_mul", 12)),
+        )
+        font = preview_font(max(1, round(y_points / 72 * dpi)))
+        scale_x = x_points / max(1, y_points)
+        measure = lambda text: round(font.getlength(text) * scale_x)
+
+    wrapped: list[str] = []
+    for paragraph in lines:
+        if not paragraph or measure(paragraph) <= width:
+            wrapped.append(paragraph)
+            continue
+        current = ""
+        for word in paragraph.split():
+            candidate = word if not current else f"{current} {word}"
+            if current and measure(candidate) > width:
+                wrapped.append(current)
+                current = ""
+            while word and measure(word) > width:
+                chunk = ""
+                for character in word:
+                    if chunk and measure(chunk + character) > width:
+                        break
+                    chunk += character
+                wrapped.append(chunk)
+                word = word[len(chunk) :]
+            current = word if not current else f"{current} {word}"
+        if current:
+            wrapped.append(current)
+    return wrapped or [""]
+
+
 def draw_tspl_text(image: Image.Image, field: dict[str, Any], value: str) -> None:
     """Rasterize a fixed-pitch approximation of TSPL's built-in font grid.
 
@@ -723,8 +823,8 @@ def draw_tspl_text(image: Image.Image, field: dict[str, Any], value: str) -> Non
     base_width, base_height = TSPL_FONT_CELLS[field.get("tspl_font", "3")]
     cell_width = base_width * int(field.get("tspl_x_mul", 1))
     cell_height = base_height * int(field.get("tspl_y_mul", 1))
-    lines = value.splitlines() or [""]
     width, height = image.size
+    lines = wrapped_text_lines(value, field, width, dpi=203)
     total_height = len(lines) * cell_height
     vertical = field.get("vertical_align", "middle")
     y = (
@@ -790,7 +890,7 @@ def draw_vector_tspl_text(
     )
     font = preview_font(max(1, round(y_points / 72 * dpi)))
     draw = ImageDraw.Draw(image)
-    for index, line in enumerate(value.splitlines() or [""]):
+    for index, line in enumerate(wrapped_text_lines(value, field, image.width, dpi)):
         bbox = draw.textbbox((0, 0), line, font=font)
         text_width = bbox[2] - bbox[0]
         align = field.get("text_align", "left")
@@ -1095,7 +1195,9 @@ def native_tspl(
             if font in TSPL_FONT_CELLS:
                 cell_width, cell_height = TSPL_FONT_CELLS[font]
                 line_height = cell_height * y_mul
-                text_lines = value.splitlines() or [""]
+                text_lines = wrapped_text_lines(
+                    value, field, width, template.printer_dpi
+                )
                 total_height = len(text_lines) * line_height
                 if field.get("vertical_align") == "middle":
                     y += max(0, (height - total_height) // 2)
@@ -1113,9 +1215,19 @@ def native_tspl(
                     )
             else:
                 # TSPL2 font 0 and downloaded TTF names use point dimensions.
-                append_line(
-                    f'TEXT {x},{y},"{font}",{rotation},{x_mul},{y_mul},"{tspl_escape(value)}"'
+                line_height = max(1, round(y_mul / 72 * template.printer_dpi))
+                text_lines = wrapped_text_lines(
+                    value, field, width, template.printer_dpi
                 )
+                total_height = len(text_lines) * line_height
+                if field.get("vertical_align") == "middle":
+                    y += max(0, (height - total_height) // 2)
+                elif field.get("vertical_align") == "bottom":
+                    y += max(0, height - total_height)
+                for index, text_line in enumerate(text_lines):
+                    append_line(
+                        f'TEXT {x},{y + index * line_height},"{font}",{rotation},{x_mul},{y_mul},"{tspl_escape(text_line)}"'
+                    )
         elif field["type"] == "qr":
             cell = max(1, min(width, height) // 29)
             append_line(f'QRCODE {x},{y},L,{cell},A,{rotation},"{tspl_escape(value)}"')
