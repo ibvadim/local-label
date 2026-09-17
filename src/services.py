@@ -15,6 +15,8 @@ from typing import Any
 
 from fastapi import HTTPException, UploadFile
 from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
+import qrcode
+from qrcode.constants import ERROR_CORRECT_L
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.orm import Session
 
@@ -950,24 +952,31 @@ def paste_fitted(
 def draw_symbol(
     image: Image.Image, box: tuple[int, int, int, int], value: str, kind: str
 ) -> None:
-    """Visual placeholder for QR/barcode until their printer serializers land.
-
-    It is deliberately deterministic so a changed input is obvious in the preview,
-    but it is not represented as a scannable production code.
-    """
+    """Draw the same kind of 1-bit symbols that the TSPL program prints."""
     draw = ImageDraw.Draw(image)
     x, y, width, height = box
     digest = hashlib.sha256(value.encode()).digest()
     if kind == "qr":
-        cells = 21
-        unit = max(1, min(width, height) // (cells + 2))
-        origin_x, origin_y = (
-            x + (width - cells * unit) // 2,
-            y + (height - cells * unit) // 2,
+        # TSPL's `QRCODE ...,L,...` uses low error correction.  Let the encoder
+        # choose the smallest valid version just as printer firmware does, then
+        # scale only by whole dots so every module remains crisp and scannable.
+        code = qrcode.QRCode(
+            version=None,
+            error_correction=ERROR_CORRECT_L,
+            box_size=1,
+            border=0,
         )
-        for row in range(cells):
-            for col in range(cells):
-                if digest[(row * cells + col) % len(digest)] >> ((row + col) % 8) & 1:
+        code.add_data(value)
+        code.make(fit=True)
+        matrix = code.get_matrix()
+        cells = len(matrix)
+        unit = max(1, min(width, height) // cells)
+        rendered_width, rendered_height = cells * unit, cells * unit
+        origin_x = x + (width - rendered_width) // 2
+        origin_y = y + (height - rendered_height) // 2
+        for row, modules in enumerate(matrix):
+            for col, enabled in enumerate(modules):
+                if enabled:
                     draw.rectangle(
                         (
                             origin_x + col * unit,
