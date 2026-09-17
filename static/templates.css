@@ -357,12 +357,19 @@
   gap:5px
 }
 .editor-head .margin-group .margin-value {
-  position:relative;
+  display:grid;
+  grid-template-rows:16px auto;
+  gap:3px;
   flex:1;
   min-width:0
 }
 .editor-head .margin-group .margin-value span {
-  display:none
+  display:block;
+  color:var(--muted);
+  font-size:15px;
+  font-weight:700;
+  line-height:16px;
+  text-align:center
 }
 .editor-head .margin-group .margin-value input {
   width:100%;
