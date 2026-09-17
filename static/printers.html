@@ -124,7 +124,7 @@ function serverCard(printer) {
   return `<article class="device ${chosen ? 'selected' : ''}" data-destination="server:${printer.id}">
     <button class="device-select" type="button" aria-expanded="${chosen}">
       <span class="device-select-copy"><span class="device-source">${tr('Сервер', 'Server')} · ${esc(transportLabel(printer.transport))}</span><strong>${esc(printer.name)}</strong><span>${esc(serverStatus(printer.status.message))}</span></span>
-      <span class="state ${esc(printer.status.state)}">${chosen ? tr('Выбран', 'Selected') : esc(stateLabel(printer.status.state))}</span>
+      <span class="state ${esc(printer.status.state)}">${esc(stateLabel(printer.status.state))}</span>
     </button>
     <details class="printer-settings" ${chosen ? 'open' : ''}>
       <summary>${tr('Параметры печати', 'Print settings')}</summary>

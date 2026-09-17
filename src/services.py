@@ -36,6 +36,11 @@ from .schemas import (
     default_print_adjustment,
 )
 
+INPUT_TOKEN_RE = re.compile(r"\{([A-Za-z][A-Za-z0-9_-]{0,63})\}")
+IMAGE_TOKEN_RE = re.compile(
+    r"\{image:([A-Za-z][A-Za-z0-9_-]{0,63}):(title|[a-z][a-z0-9_]*)\}"
+)
+
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
@@ -440,13 +445,12 @@ def validate_template_fields(
         ids.add(field_id)
         item["id"] = field_id
         if item["value_template"]:
-            if item["type"] != "text":
+            if item["type"] not in {"text", "qr", "barcode"}:
                 raise HTTPException(
-                    422, f"Шаблонизатор доступен только для text-поля '{field_id}'"
+                    422,
+                    f"Шаблонизатор доступен только для text, qr или barcode-поля '{field_id}'",
                 )
-            variables = re.findall(
-                r"\{([A-Za-z][A-Za-z0-9_-]{0,63})\}", item["value_template"]
-            )
+            variables = INPUT_TOKEN_RE.findall(item["value_template"])
             unknown_variables = set(variables) - input_ids
             if unknown_variables:
                 raise HTTPException(
@@ -533,6 +537,29 @@ def validate_template_fields(
                     f"Derived-поле '{field_id}' требует text, source_field_id и metadata_key",
                 )
     for item in fields:
+        if item["type"] in {"text", "qr", "barcode"} and item["value_template"]:
+            for source_id, metadata_key in IMAGE_TOKEN_RE.findall(
+                item["value_template"]
+            ):
+                source = next(
+                    (candidate for candidate in fields if candidate["id"] == source_id),
+                    None,
+                )
+                if not source or source["type"] != "image":
+                    raise HTTPException(
+                        422,
+                        f"Источник токена image '{source_id}' должен быть image-полем",
+                    )
+                if metadata_key == "title" or not source["restrict_group_id"]:
+                    continue
+                group = group_or_404(db, source["restrict_group_id"])
+                if metadata_key not in {
+                    attribute["key"] for attribute in group.metadata_schema
+                }:
+                    raise HTTPException(
+                        422,
+                        f"Атрибут '{metadata_key}' отсутствует в группе источника",
+                    )
         if item["binding"] == "derived":
             source = next(
                 (
@@ -630,14 +657,22 @@ def preview_values(
             resolved[field_id] = value
         else:
             template_value = field.get("value_template", "")
-            if template_value:
-                resolved[field_id] = re.sub(
-                    r"\{([A-Za-z][A-Za-z0-9_-]{0,63})\}",
-                    lambda match: input_values[match.group(1)],
-                    template_value,
-                )
-            else:
+            if not template_value:
                 resolved[field_id] = field.get("default_value", "")
+                continue
+
+            def image_value(match: re.Match[str]) -> str:
+                source = assets.get(match.group(1))
+                if not source:
+                    return ""
+                if match.group(2) == "title":
+                    return source.title
+                return str(source.metadata_values.get(match.group(2), ""))
+
+            template_value = IMAGE_TOKEN_RE.sub(image_value, template_value)
+            resolved[field_id] = INPUT_TOKEN_RE.sub(
+                lambda match: input_values[match.group(1)], template_value
+            )
     return resolved, assets
 
 

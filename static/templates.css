@@ -105,6 +105,60 @@
   margin:6px 0 0;
   line-height:1.4
 }
+.text-content textarea {
+  width:100%;
+  min-height:88px;
+  margin-top:5px;
+  resize:vertical;
+  font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace
+}
+.token-picker {
+  margin-top:10px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:#f7f7f4
+}
+.token-picker summary {
+  padding:9px 10px;
+  color:var(--accent);
+  font-size:13px;
+  font-weight:650;
+  cursor:pointer
+}
+.token-picker-body {
+  display:grid;
+  gap:12px;
+  padding:0 10px 10px
+}
+.token-picker-body section {
+  display:grid;
+  gap:6px
+}
+.token-picker-body h3,.token-image-group strong {
+  margin:0;
+  color:var(--muted);
+  font:10px ui-monospace,monospace;
+  letter-spacing:.04em;
+  text-transform:uppercase
+}
+.token-picker-body p {
+  margin:0;
+  color:var(--muted);
+  font-size:12px
+}
+.token-picker-body button {
+  width:100%;
+  min-height:34px;
+  padding:6px 8px;
+  text-align:left;
+  font-size:12px
+}
+.token-image-group {
+  display:grid;
+  gap:6px;
+  padding-top:8px;
+  border-top:1px solid var(--border)
+}
 .toolbar {
   display:flex;
   gap:8px;
