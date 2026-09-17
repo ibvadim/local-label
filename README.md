@@ -31,20 +31,42 @@ Open <http://127.0.0.1:8811>. The application creates its SQLite database at
 `data/locallabel.db` on first start. The whole `data/` directory is ignored by
 Git because it can contain your images and label data.
 
-## Docker
+## Run with Docker
 
-Run LocalLabel with Docker Compose:
-
-```bash
-docker compose up -d --build
-```
-
-Open <http://127.0.0.1:8811>. Data persists in Docker's `locallabel-data`
-volume. Change the host port if needed:
+The published image is the recommended way to run LocalLabel. It requires only
+Docker—no source checkout and no local build:
 
 ```bash
-LOCALLABEL_PORT=8080 docker compose up -d --build
+docker run -d \
+  --name locallabel \
+  --restart unless-stopped \
+  -p 8811:8811 \
+  -v locallabel-data:/data \
+  ghcr.io/ibvadim/local-label:latest
 ```
+
+Open <http://127.0.0.1:8811>. Docker keeps templates, assets, and printer
+settings in the `locallabel-data` volume. To use another host port, replace
+the first `8811` in `-p 8811:8811`, for example with `-p 8080:8811`.
+
+### Docker Compose
+
+If you prefer Compose, download only
+[`compose.yaml`](https://raw.githubusercontent.com/ibvadim/local-label/main/compose.yaml)
+and run:
+
+```bash
+docker compose up -d
+```
+
+Set `LOCALLABEL_PORT` to change the published port:
+
+```bash
+LOCALLABEL_PORT=8080 docker compose up -d
+```
+
+The `latest` image is rebuilt after every push to `main`. For predictable
+deployments, use a version tag such as `ghcr.io/ibvadim/local-label:0.1.0`.
 
 ### Direct USB from a Linux Docker host
 
@@ -53,7 +75,7 @@ Compose override:
 
 ```bash
 LOCALLABEL_PRINTER_DEVICE=/dev/locallabel-printer \
-  docker compose -f compose.yaml -f compose.usb.yaml up -d --build
+  docker compose -f compose.yaml -f compose.usb.yaml up -d
 ```
 
 Direct USB pass-through does not work reliably with Docker Desktop on macOS or
@@ -91,6 +113,13 @@ printer before production use.
 The frontend is intentionally dependency-light static HTML/CSS/JavaScript,
 served by FastAPI. The template editor loads Konva from jsDelivr, so its editor
 needs network access unless you vendor that script for an offline deployment.
+
+To build and run the checkout locally with Compose, use the development
+override:
+
+```bash
+docker compose -f compose.yaml -f compose.dev.yaml up --build
+```
 
 Run a lightweight smoke check after changes:
 

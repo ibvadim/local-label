@@ -1,0 +1,4 @@
+services:
+  locallabel:
+    build: .
+    image: locallabel:dev

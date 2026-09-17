@@ -1,5 +1,9 @@
 FROM python:3.14-slim
 
+LABEL org.opencontainers.image.source="https://github.com/ibvadim/local-label" \
+      org.opencontainers.image.description="Local-first TSPL label designer and printer" \
+      org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
